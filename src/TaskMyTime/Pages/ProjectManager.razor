@@ -1,0 +1,95 @@
+﻿@page "/tasks"
+@using MudBlazor
+@using TaskMyTime.Interfaces
+@using TaskMyTime.Models
+
+<MudContainer Class="mt-4">
+	<div class="d-flex">
+		<MudText Typo="Typo.h4">Task My time</MudText>
+		<MudSpacer></MudSpacer>
+		<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@AddProject" Class="mr-2">Aggiungi Progetto</MudButton>
+	</div>
+	<MudDivider Class="my-4"/>
+	<MudExpansionPanels MultiExpansion="true">
+		@foreach (var project in _projects)
+		{
+			<MudExpansionPanel>
+				<TitleContent>
+					<div class="d-flex">
+						<MudText Typo="Typo.h6">@project.Id</MudText>
+						<MudSpacer></MudSpacer>
+						<MudTextField @bind-Value="@project.Name" OnBlur="() => SaveProject(project)"/>
+						<MudSpacer></MudSpacer>
+						<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => { AddTask(project); TaskSections[project.Id].Refresh(); }" Class="mr-2">Aggiungi Task</MudButton>
+					</div>
+				</TitleContent>
+				<ChildContent>
+
+
+					<TaskManager @ref="curentTaskManager" CurrentProject="project"></TaskManager>
+				</ChildContent>
+			</MudExpansionPanel>
+		}
+	</MudExpansionPanels>
+</MudContainer>
+
+@code {
+	[Inject]
+	private IProjectService _projectService { get; set; }
+
+	[Inject]
+	private ITaskService _taskService { get; set; }
+
+	private Dictionary<int, TaskManager> TaskSections
+	{
+		get;
+		set;
+	} = new Dictionary<int, TaskManager>();
+
+	private TaskManager curentTaskManager
+	{
+		set => TaskSections[value.CurrentProject.Id] = value;
+	}
+
+	private List<Project> _projects;
+	protected override async Task OnInitializedAsync()
+	{
+		_projects = await _projectService.GetProjects();
+		await base.OnInitializedAsync();
+	}
+
+    async Task AddProject()
+    {
+	    var p = new Project()
+	    {
+
+		    Name = "Nuovo Progetto",
+	    };
+	    await _projectService.AddProject(p);
+	    _projects = await _projectService.GetProjects();
+	    StateHasChanged();
+
+    }
+
+    async Task AddTask(Project project)
+    {
+
+	    var t = new TaskItem
+	    {
+		    Title = "Nuovo Task",
+		    Project = project,
+		    StartDate = DateTime.Today,
+		    StartTime = DateTime.Now.TimeOfDay
+	    };
+
+	    await _taskService.AddTask(t);
+	    StateHasChanged();
+
+    }
+
+    private async Task SaveProject(Project project)
+    {
+	    await _projectService.SaveProject(project);
+    }
+
+}

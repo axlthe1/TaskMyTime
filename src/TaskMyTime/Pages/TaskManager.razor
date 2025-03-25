@@ -1,0 +1,111 @@
+﻿@using TaskMyTime.Interfaces
+@using TaskMyTime.Models
+<h3>TaskManager</h3>
+
+
+<MudTable @key="CurrentProject.Id" Items="@_tasks">
+	<HeaderContent>
+		<MudTh>Titolo</MudTh>
+		<MudTh>Descrizione</MudTh>
+		<MudTh>Data/ora di partenza</MudTh>
+		<MudTh>Tempo Trascorso</MudTh>
+		<MudTh>Azioni</MudTh>
+	</HeaderContent>
+	<RowTemplate>
+		<MudTd><MudTextField @bind-Value="context.Title" OnBlur="() =>saveTask(context)" /></MudTd>
+		<MudTd><MudTextField @bind-Value="context.Description" OnBlur="() => saveTask(context)"/></MudTd>
+		<MudTd><MudDatePicker  @bind-Date="context.StartDate" DateFormat="dd/MM/yyyy" /></MudTd>
+		<MudTd><MudText>@context.ElapsedTime.ToString(@"hh\:mm")</MudText></MudTd>
+		<MudTd>
+			@if (!context.IsTimerRunning)
+			{
+				<MudButton Color="Color.Success" OnClick="@(() => StartTimer(context))">Avvia</MudButton>
+			}
+			else
+			{
+				<MudButton Color="Color.Error" OnClick="@(() => StopTimer(context))">Stop</MudButton>
+			}
+		</MudTd>
+	</RowTemplate>
+</MudTable>
+@code {
+
+
+	[Parameter]
+	public Project CurrentProject { get; set; }
+
+	[Inject]
+	private ITaskService _taskService { get; set; }
+
+	private List<TaskItem> _tasks;
+	private List<TaskItem> _taskToUpdate;
+	private Timer timer;
+
+	protected override async Task OnInitializedAsync()
+	{
+		_tasks = await _taskService.GetTasks(CurrentProject);
+		timer = new Timer(UpdateStartedTasks,null,TimeSpan.FromSeconds(10),TimeSpan.FromSeconds(10));
+		await base.OnInitializedAsync();
+	}
+
+	private void UpdateStartedTasks(object? context)
+	{
+		var lst = _tasks.Where(p => p.IsTimerRunning).ToList();
+		if (lst.Count == 0)
+			return;
+		foreach (var taskItem in lst)
+		{
+			taskItem.ElapsedTime = (DateTime.Now - taskItem.StartDate).Value.Add(taskItem.ElapsedTime);
+			saveTask(taskItem);
+			InvokeAsync(()=> {StateHasChanged();});
+		}
+	}
+
+	private async Task saveTask(object task)
+	{
+		await _taskService.SaveTaskAsync(task as TaskItem);
+	}
+
+
+	void StartTimer(TaskItem task)
+	{
+		task.StartDate = DateTime.Now;
+
+		task.IsTimerRunning = true;
+	}
+
+	void StopTimer(TaskItem task)
+	{
+		task.IsTimerRunning = false;
+		task.ElapsedTime = (DateTime.Now - task.StartDate).Value.Add(task.ElapsedTime);
+
+
+	}
+
+	void AddTask()
+	{
+
+		var t = new TaskItem
+		{
+			Title = "Nuovo Task",
+			Project = CurrentProject,
+			StartDate = DateTime.Today,
+			StartTime = DateTime.Now.TimeOfDay
+		};
+
+		_taskService.AddTask(t);
+		_tasks.Add(t);
+	}
+
+	public async Task Refresh()
+	{
+		_tasks = await _taskService.GetTasks(CurrentProject);
+		StateHasChanged();
+	}
+
+	~TaskManager()
+	{
+		if(timer != null)
+		timer.Dispose();
+	}
+}
